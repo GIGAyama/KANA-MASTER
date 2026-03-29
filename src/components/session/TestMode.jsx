@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Eye, RotateCcw, Undo2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import MotionButton from '../ui/MotionButton';

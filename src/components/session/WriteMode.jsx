@@ -142,10 +142,10 @@ const WriteMode = ({ paths, strokeData, crossMatrix, onNext, commonSidebar, onRe
       window.removeEventListener('mouseup', handleEnd);
       canvas.removeEventListener('touchstart', handleStart);
       canvas.removeEventListener('touchmove', handleMove);
-      window.removeEventListener('touchend', handleEnd);
+      canvas.removeEventListener('touchend', handleEnd);
       window.removeEventListener('resize', onRes);
     };
-  }, [initCanvases]);
+  }, [initCanvases, handleStart, handleMove, handleEnd]);
 
   const isBlindMode = count >= 5;
 
