@@ -168,7 +168,7 @@ export const KANA_VG = {
   CDN_URL: 'https://raw.githubusercontent.com/parsimonhi/animCJK/master/svgsJaKana',
   FETCH_TIMEOUT: 5000,
   MAX_RETRIES: 3,
-  VIEWBOX_SIZE: 1024, // AnimCJKのviewBoxは通常 1024
+  VIEWBOX_SIZE: 109, // AnimCJK svgsJaKana のviewBoxは 109x109
   SAMPLE_INTERVAL: 4,
 };
 

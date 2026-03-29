@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Star, ArrowRight } from 'lucide-react';
+import { Trophy, Star, ArrowRight, Zap } from 'lucide-react';
 import { audioCtrl } from '../../systems/audio';
 import Confetti from '../ui/Confetti';
+import AnimatedCounter from '../ui/AnimatedCounter';
 
 export default function ResultView({ sessionMetrics, setView }) {
   const [showConfetti, setShowConfetti] = useState(false);
@@ -51,6 +52,11 @@ export default function ResultView({ sessionMetrics, setView }) {
             <span className="text-red-500 font-black flex items-center gap-1">
               <Star fill="currentColor" size={24} /> {sessionMetrics.perfectCount || 0}
             </span>
+          </div>
+
+          <div className="flex justify-between items-center mb-4 text-xl md:text-2xl font-bold text-gray-600">
+            <span className="flex items-center gap-1"><Zap size={20} /> もらった EXP</span>
+            <span className="text-purple-600 font-black">+<AnimatedCounter target={sessionMetrics.earnedExp || 0} /></span>
           </div>
 
           <div className="flex justify-between items-center pt-4 border-t-2 border-gray-200 text-xl font-bold text-gray-700">
