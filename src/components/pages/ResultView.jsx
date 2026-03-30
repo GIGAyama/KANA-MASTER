@@ -2,17 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Star, ArrowRight, Zap } from 'lucide-react';
 import { audioCtrl } from '../../systems/audio';
+import { checkLevelUp, getLevelInfo } from '../../systems/level';
 import Confetti from '../ui/Confetti';
 import AnimatedCounter from '../ui/AnimatedCounter';
+import LevelUpModal from '../ui/LevelUpModal';
 
-export default function ResultView({ sessionMetrics, setView }) {
+export default function ResultView({ sessionMetrics, setView, stats }) {
   const [showConfetti, setShowConfetti] = useState(false);
+  const [levelUpInfo, setLevelUpInfo] = useState(null);
+
+  const oldExp = sessionMetrics.oldExp || 0;
+  const newExp = stats?.totalExp || 0;
 
   useEffect(() => {
-    // リザルト画面表示直後にファンファーレ
     audioCtrl.playSE('level_up');
     setShowConfetti(true);
     const t = setTimeout(() => setShowConfetti(false), 3000);
+
+    // レベルアップ判定
+    const lvUp = checkLevelUp(oldExp, newExp);
+    if (lvUp) {
+      const t2 = setTimeout(() => setLevelUpInfo(lvUp), 1500);
+      return () => { clearTimeout(t); clearTimeout(t2); };
+    }
     return () => clearTimeout(t);
   }, []);
 
@@ -21,9 +33,12 @@ export default function ResultView({ sessionMetrics, setView }) {
     setView('home');
   };
 
+  const currentLevel = getLevelInfo(newExp);
+
   return (
     <div className="flex flex-col items-center justify-center p-4 md:p-8 h-full relative overflow-hidden">
       {showConfetti && <Confetti count={100} />}
+      {levelUpInfo && <LevelUpModal levelInfo={levelUpInfo} onClose={() => setLevelUpInfo(null)} />}
 
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
@@ -62,6 +77,25 @@ export default function ResultView({ sessionMetrics, setView }) {
           <div className="flex justify-between items-center pt-4 border-t-2 border-gray-200 text-xl font-bold text-gray-700">
             <span>あたらしく おぼえた</span>
             <span className="text-green-600 font-black">{sessionMetrics.newKanaCount || 0} コ</span>
+          </div>
+
+          {/* レベルプログレス */}
+          <div className="mt-4 pt-4 border-t-2 border-gray-200">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">{currentLevel.icon}</span>
+              <span className="text-lg font-black text-gray-700">Lv.{currentLevel.level}</span>
+              <span className="text-base font-black text-[var(--primary)]">{currentLevel.title}</span>
+            </div>
+            {!currentLevel.isMaxLevel && (
+              <div className="h-3 bg-gray-200 rounded-full overflow-hidden border border-gray-300">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${currentLevel.progress * 100}%` }}
+                  transition={{ duration: 1.2, ease: 'easeOut', delay: 0.5 }}
+                  className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] rounded-full"
+                />
+              </div>
+            )}
           </div>
         </div>
 
