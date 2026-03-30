@@ -59,9 +59,11 @@ const TestMode = ({ kanji, strokeData, onEvaluate, commonSidebar }) => {
     const rect = canvasRef.current.getBoundingClientRect();
     if (rect.width === 0) return { x: 0, y: 0 };
     const scale = INTERNAL_SIZE / rect.width;
-    const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
-    const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
-    return { x: (clientX - rect.left) * scale, y: (clientY - rect.top) * scale };
+    const isTouch = e.touches && e.touches.length > 0;
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    const touchOffsetY = isTouch ? -24 : 0;
+    return { x: (clientX - rect.left) * scale, y: (clientY - rect.top + touchOffsetY) * scale };
   };
 
   const stateRef = useRef({ isDrawing, kanji, userStrokes });
