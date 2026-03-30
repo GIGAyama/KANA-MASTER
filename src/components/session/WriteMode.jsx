@@ -65,14 +65,16 @@ const WriteMode = ({ paths, strokeData, viewBoxSize = 109, crossMatrix, onNext, 
   const handleNextTry = () => { setCount(c => c + 1); setCurrentStroke(0); setUserStrokes([]); setStatusMsg("１かくめ をかこう！"); distSum.current = 0; strokeDists.current = []; clearCanvas(writeRef); };
   const undoLastStroke = () => { if (currentStroke <= 0 || isDrawing) return; const newStroke = currentStroke - 1; setCurrentStroke(newStroke); setUserStrokes(prev => prev.slice(0, -1)); const lastDist = strokeDists.current.pop() || 0; distSum.current -= lastDist; clearCanvas(writeRef); setStatusMsg(`${newStroke + 1}かくめ をかこう！`); audioCtrl.playSE('click'); };
 
-  const getCoords = (e) => { 
+  const getCoords = (e) => {
     if (!writeRef.current) return { x: 0, y: 0 };
-    const rect = writeRef.current.getBoundingClientRect(); 
+    const rect = writeRef.current.getBoundingClientRect();
     if (rect.width === 0) return { x: 0, y: 0 };
-    const scale = INTERNAL_SIZE / rect.width; 
-    const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX; 
-    const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY; 
-    return { x: (clientX - rect.left) * scale, y: (clientY - rect.top) * scale }; 
+    const scale = INTERNAL_SIZE / rect.width;
+    const isTouch = e.touches && e.touches.length > 0;
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    const touchOffsetY = isTouch ? -24 : 0;
+    return { x: (clientX - rect.left) * scale, y: (clientY - rect.top + touchOffsetY) * scale };
   };
   
   const lastPos = useRef({ x: 0, y: 0 });
