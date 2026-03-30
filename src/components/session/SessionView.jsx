@@ -15,6 +15,7 @@ const SessionView = ({ queue: initialQueue, stats, onUpdateStat, onFinish, onRec
   const [mode, setMode] = useState('read');
   const [paths, setPaths] = useState([]);
   const [strokeData, setStrokeData] = useState([]);
+  const [viewBoxSize, setViewBoxSize] = useState(1024);
   const [crossMatrix, setCrossMatrix] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeStamp, setActiveStamp] = useState(null);
@@ -35,9 +36,9 @@ const SessionView = ({ queue: initialQueue, stats, onUpdateStat, onFinish, onRec
     const load = async () => {
       setIsLoading(true); setFetchError(null);
       try {
-        const { paths: p, strokeData: data } = await fetchKanaVg(currentKana.char);
+        const { paths: p, strokeData: data, viewBoxSize: vb } = await fetchKanaVg(currentKana.char);
         if (cancelled) return;
-        setPaths(p); setStrokeData(data);
+        setPaths(p); setStrokeData(data); setViewBoxSize(vb);
         const cMatrix = data.map((_, i) => data.map((__, j) => i !== j && Analyzer.checkCross(data[i].points, data[j].points)));
         setCrossMatrix(cMatrix);
       } catch (e) {
@@ -97,13 +98,13 @@ const SessionView = ({ queue: initialQueue, stats, onUpdateStat, onFinish, onRec
           <div className="flex flex-col items-center justify-center h-full gap-4 p-6 text-center">
             <div className="text-5xl">😢</div>
             <p className="text-[var(--text)] font-bold text-lg whitespace-pre-line">{fetchError}</p>
-            <button onClick={() => { setFetchError(null); setIsLoading(true); fetchKanaVg(currentKana.char).then(({ paths: p, strokeData: data }) => { setPaths(p); setStrokeData(data); const cMatrix = data.map((_, i) => data.map((__, j) => i !== j && Analyzer.checkCross(data[i].points, data[j].points))); setCrossMatrix(cMatrix); setIsLoading(false); }).catch(() => { setFetchError('よみこみに しっぱいしました。\nもういちど ためしてね。'); setIsLoading(false); }); }} className="bg-[var(--primary)] text-white font-black text-lg px-8 py-3 rounded-2xl border-[3px] border-[var(--text)] shadow-[3px_3px_0_var(--text)] active:shadow-none active:translate-x-[3px] active:translate-y-[3px]">🔄 もういちど ためす</button>
+            <button onClick={() => { setFetchError(null); setIsLoading(true); fetchKanaVg(currentKana.char).then(({ paths: p, strokeData: data, viewBoxSize: vb }) => { setPaths(p); setStrokeData(data); setViewBoxSize(vb); const cMatrix = data.map((_, i) => data.map((__, j) => i !== j && Analyzer.checkCross(data[i].points, data[j].points))); setCrossMatrix(cMatrix); setIsLoading(false); }).catch(() => { setFetchError('よみこみに しっぱいしました。\nもういちど ためしてね。'); setIsLoading(false); }); }} className="bg-[var(--primary)] text-white font-black text-lg px-8 py-3 rounded-2xl border-[3px] border-[var(--text)] shadow-[3px_3px_0_var(--text)] active:shadow-none active:translate-x-[3px] active:translate-y-[3px]">🔄 もういちど ためす</button>
           </div>
         ) : (
           <>
             {mode === 'read' && <ReadMode kanji={currentKana} onNext={() => setMode('watch')} commonSidebar={getCommonSidebar()} />}
-            {mode === 'watch' && <WatchMode paths={paths} strokeData={strokeData} isLoading={isLoading} onNext={() => setMode('write')} canvasSize={canvasSize} commonSidebar={getCommonSidebar()} />}
-            {mode === 'write' && <WriteMode paths={paths} strokeData={strokeData} crossMatrix={crossMatrix} onNext={() => setMode('test')} canvasSize={canvasSize} commonSidebar={getCommonSidebar()} onRecordPerfect={onRecordPerfect} />}
+            {mode === 'watch' && <WatchMode paths={paths} strokeData={strokeData} viewBoxSize={viewBoxSize} isLoading={isLoading} onNext={() => setMode('write')} canvasSize={canvasSize} commonSidebar={getCommonSidebar()} />}
+            {mode === 'write' && <WriteMode paths={paths} strokeData={strokeData} viewBoxSize={viewBoxSize} crossMatrix={crossMatrix} onNext={() => setMode('test')} canvasSize={canvasSize} commonSidebar={getCommonSidebar()} onRecordPerfect={onRecordPerfect} />}
             {mode === 'test' && <TestMode kanji={currentKana} strokeData={strokeData} onEvaluate={handleEvaluation} canvasSize={canvasSize} commonSidebar={getCommonSidebar()} />}
           </>
         )}
