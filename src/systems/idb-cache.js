@@ -5,7 +5,7 @@
 // ==========================================
 
 const DB_NAME = 'kanji-town-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'kanji-vg';
 
 /** @type {Promise<IDBDatabase>|null} */
@@ -19,11 +19,13 @@ function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      // v1→v2: AnimCJK→KanjiVG移行のため既存ストアを削除して再作成
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME);
       }
+      db.createObjectStore(STORE_NAME);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {

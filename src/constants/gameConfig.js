@@ -163,13 +163,13 @@ export const DEBOUNCE = {
   DATE_CHECK_INTERVAL: 60000,
 };
 
-/** KanaVG設定 (AnimCJKベース) */
+/** KanaVG設定 (KanjiVGベース) */
 export const KANA_VG = {
-  CDN_URL: 'https://raw.githubusercontent.com/parsimonhi/animCJK/master/svgsJaKana',
+  CDN_URL: 'https://cdn.jsdelivr.net/gh/KanjiVG/kanjivg@master/kanji',
   FETCH_TIMEOUT: 5000,
   MAX_RETRIES: 3,
-  VIEWBOX_SIZE: 1024, // AnimCJK svgsJaKana のviewBoxは 1024x1024
-  SAMPLE_INTERVAL: 4,
+  VIEWBOX_SIZE: 109, // KanjiVG のviewBoxは 109x109
+  SAMPLE_INTERVAL: 2,
 };
 
 /** 天気設定 */

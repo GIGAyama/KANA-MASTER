@@ -56,55 +56,28 @@ async function fetchWithRetry(url, maxRetries, timeout) {
 }
 
 /**
- * SVGテキストからストローク中央線(median)パスを抽出し、画ごとにグループ化する
+ * SVGテキストからストロークパスを抽出する
  *
- * AnimCJK SVG の構造:
- *   - outline paths: id="z{code}d{strokeNum}{subPart?}" → 塗り形状（clipPath用）
- *   - median paths:  clip-path="url(#z{code}c{strokeNum}{subPart?})" → 中央線ストローク
- * 同じ strokeNum の median が複数ある場合（例: d3a, d3b）は同一画のサブパーツ。
- * 各画の代表 median（viewBox 内に始点がある方）を1本選ぶ。
+ * KanjiVG SVG の構造:
+ *   - 各ストロークは <path> 要素として格納
+ *   - viewBox は 0 0 109 109
+ *   - d属性を持つ全 <path> 要素がストロークに対応
  *
  * @param {string} svgText - SVG文字列
- * @returns {{ paths: string[], viewBoxSize: number }} 画ごとの median path と viewBox サイズ
+ * @returns {{ paths: string[], viewBoxSize: number }} ストロークパスと viewBox サイズ
  */
 function extractPathStrings(svgText) {
   const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
 
-  // viewBox サイズを取得（AnimCJK は 1024×1024）
+  // viewBox サイズを取得（KanjiVG は 109×109）
   const svgEl = doc.querySelector('svg');
   const vbParts = svgEl?.getAttribute('viewBox')?.split(/\s+/).map(Number);
-  const viewBoxSize = (vbParts && vbParts.length >= 3) ? vbParts[2] : 1024;
+  const viewBoxSize = (vbParts && vbParts.length >= 3) ? vbParts[2] : 109;
 
-  // median paths = clip-path 属性を持つ path 要素
-  const medianEls = Array.from(doc.querySelectorAll('path[clip-path]'));
-
-  // clip-path URL からストローク番号を抽出してグループ化
-  // 例: url(#z12354c3a) → strokeNum=3
-  const groups = new Map(); // strokeNum → [{ d, subId }]
-  for (const el of medianEls) {
-    const cp = el.getAttribute('clip-path') || '';
-    const m = cp.match(/url\(#z\d+c(\d+)/);
-    if (!m) continue;
-    const strokeNum = parseInt(m[1], 10);
-    const d = el.getAttribute('d');
-    if (!d) continue;
-    if (!groups.has(strokeNum)) groups.set(strokeNum, []);
-    groups.get(strokeNum).push(d);
-  }
-
-  // ストローク番号順にソートし、各画から代表パスを1本選ぶ
-  // 代表パス = 始点が viewBox 内（x >= 0）にあるもの
-  const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
-  const paths = sortedKeys.map(key => {
-    const candidates = groups.get(key);
-    if (candidates.length === 1) return candidates[0];
-    // 始点の x 座標が 0 以上のものを優先（負座標はミラー用サブパス）
-    const primary = candidates.find(d => {
-      const firstNum = parseFloat(d.replace(/^M\s*/, '').split(/[\s,]/)[0]);
-      return !isNaN(firstNum) && firstNum >= 0;
-    });
-    return primary || candidates[0];
-  });
+  // KanjiVG: 全 <path> 要素の d 属性を取得
+  const paths = Array.from(doc.querySelectorAll('path'))
+    .map(p => p.getAttribute('d'))
+    .filter(Boolean);
 
   return { paths, viewBoxSize };
 }
@@ -116,7 +89,7 @@ function extractPathStrings(svgText) {
  * @returns {Array<{s: {x: number, y: number}, e: {x: number, y: number}, points: Array<{x: number, y: number}>}>}
  */
 function buildStrokeData(pathStrings, viewBoxSize) {
-  const size = viewBoxSize || 1024;
+  const size = viewBoxSize || 109;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   svg.appendChild(pathEl);
@@ -157,8 +130,8 @@ function buildStrokeData(pathStrings, viewBoxSize) {
  * @throws {Error} 全リトライ失敗時
  */
 export async function fetchKanaVg(char) {
-  // AnimCJK の svgsJaKana ファイル名はUnicodeの10進数文字列
-  const fileId = char.charCodeAt(0).toString(10);
+  // KanjiVG のファイル名はUnicodeの16進数（5桁ゼロパディング）
+  const fileId = char.charCodeAt(0).toString(16).padStart(5, '0');
 
   // 1. メモリキャッシュ（新形式 { paths, viewBoxSize } のみ有効）
   if (memoryCache.has(fileId)) {
@@ -205,7 +178,7 @@ export async function prefetchKanaVg(kanaList) {
   // 既にキャッシュ済みのキーを取得
   const cachedKeys = new Set(await idbGetAllKeys());
   const uncached = kanaList.filter(k => {
-    const fileId = k.char.charCodeAt(0).toString(10);
+    const fileId = k.char.charCodeAt(0).toString(16).padStart(5, '0');
     // メモリ内の新形式キャッシュがあればスキップ
     const mem = memoryCache.get(fileId);
     if (mem && mem.paths && mem.viewBoxSize) return false;
@@ -218,7 +191,7 @@ export async function prefetchKanaVg(kanaList) {
   for (const k of uncached) {
     // オフラインになったら中断
     if (!navigator.onLine) break;
-    const fileId = k.char.charCodeAt(0).toString(10);
+    const fileId = k.char.charCodeAt(0).toString(16).padStart(5, '0');
     try {
       const res = await fetchWithTimeout(
         `${KANA_VG.CDN_URL}/${fileId}.svg`,

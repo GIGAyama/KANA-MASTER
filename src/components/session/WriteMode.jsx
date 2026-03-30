@@ -11,7 +11,7 @@ import { STROKE_THRESHOLDS } from '../../constants/strokeConfig';
 
 const INTERNAL_SIZE = 400;
 
-const WriteMode = ({ paths, strokeData, viewBoxSize = 1024, crossMatrix, onNext, commonSidebar, onRecordPerfect }) => {
+const WriteMode = ({ paths, strokeData, viewBoxSize = 109, crossMatrix, onNext, commonSidebar, onRecordPerfect }) => {
   const inkRef = useRef(null); const writeRef = useRef(null);
   const [currentStroke, setCurrentStroke] = useState(0); const [isDrawing, setIsDrawing] = useState(false);
   const [count, setCount] = useState(0); const [statusMsg, setStatusMsg] = useState("１かくめ をかこう！");
