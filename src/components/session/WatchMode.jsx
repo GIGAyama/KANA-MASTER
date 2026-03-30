@@ -8,7 +8,7 @@ import { audioCtrl } from '../../systems/audio';
 
 const ANIM_DURATION = 800; // ms per stroke
 
-const WatchMode = ({ paths, strokeData, isLoading, onNext, commonSidebar }) => {
+const WatchMode = ({ paths, strokeData, viewBoxSize = 1024, isLoading, onNext, commonSidebar }) => {
   const [currentStroke, setCurrentStroke] = useState(0);
   const [progress, setProgress] = useState(0); // 0-1 animation progress
   const [isPlaying, setIsPlaying] = useState(false);
@@ -130,12 +130,13 @@ const WatchMode = ({ paths, strokeData, isLoading, onNext, commonSidebar }) => {
       <div className="absolute top-0 left-1/2 w-0 h-full border-l-4 border-dashed border-[var(--text)] opacity-10 -translate-x-1/2 pointer-events-none" />
       <div className="absolute top-1/2 left-0 w-full h-0 border-t-4 border-dashed border-[var(--text)] opacity-10 -translate-y-1/2 pointer-events-none" />
 
-      <svg viewBox="0 0 109 109" className="absolute inset-0 z-10 pointer-events-none w-full h-full">
+      <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="absolute inset-0 z-10 pointer-events-none w-full h-full">
         {paths.map((d, i) => {
+          const sw = viewBoxSize * 0.055; // ストローク幅を viewBox に合わせてスケール
           if (i < currentStroke) {
             // Completed strokes - solid dark
             return (
-              <path key={i} d={d} fill="none" stroke="var(--text)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <path key={i} d={d} fill="none" stroke="var(--text)" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
             );
           } else if (i === currentStroke) {
             // Current stroke - animated
@@ -144,13 +145,13 @@ const WatchMode = ({ paths, strokeData, isLoading, onNext, commonSidebar }) => {
             return (
               <g key={i}>
                 {/* Faint full path as guide */}
-                <path d={d} fill="none" stroke="rgba(239,68,68,0.15)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke="rgba(239,68,68,0.15)" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
                 {/* Animated stroke */}
                 <path
                   d={d}
                   fill="none"
                   stroke="var(--primary)"
-                  strokeWidth="6"
+                  strokeWidth={sw}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeDasharray={len}
@@ -159,9 +160,9 @@ const WatchMode = ({ paths, strokeData, isLoading, onNext, commonSidebar }) => {
                 {/* Start point indicator */}
                 {strokeData[i] && (
                   <circle
-                    cx={strokeData[i].s.x * 109}
-                    cy={strokeData[i].s.y * 109}
-                    r="4"
+                    cx={strokeData[i].s.x * viewBoxSize}
+                    cy={strokeData[i].s.y * viewBoxSize}
+                    r={viewBoxSize * 0.035}
                     fill="var(--primary)"
                     opacity={progress < 0.3 ? 1 : 1 - (progress - 0.3) / 0.7}
                   />
@@ -171,7 +172,7 @@ const WatchMode = ({ paths, strokeData, isLoading, onNext, commonSidebar }) => {
           } else {
             // Future strokes - very faint
             return (
-              <path key={i} d={d} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <path key={i} d={d} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
             );
           }
         })}

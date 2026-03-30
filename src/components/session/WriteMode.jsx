@@ -11,7 +11,7 @@ import { STROKE_THRESHOLDS } from '../../constants/strokeConfig';
 
 const INTERNAL_SIZE = 400;
 
-const WriteMode = ({ paths, strokeData, crossMatrix, onNext, commonSidebar, onRecordPerfect }) => {
+const WriteMode = ({ paths, strokeData, viewBoxSize = 1024, crossMatrix, onNext, commonSidebar, onRecordPerfect }) => {
   const inkRef = useRef(null); const writeRef = useRef(null);
   const [currentStroke, setCurrentStroke] = useState(0); const [isDrawing, setIsDrawing] = useState(false);
   const [count, setCount] = useState(0); const [statusMsg, setStatusMsg] = useState("１かくめ をかこう！");
@@ -40,16 +40,17 @@ const WriteMode = ({ paths, strokeData, crossMatrix, onNext, commonSidebar, onRe
   const drawInk = useCallback(() => {
     const iCtx = inkRef.current?.getContext('2d'); if (!iCtx || !paths.length) return;
     iCtx.clearRect(0, 0, INTERNAL_SIZE, INTERNAL_SIZE);
-    if (count < 2) { 
-      iCtx.save(); iCtx.scale(INTERNAL_SIZE / 109, INTERNAL_SIZE / 109); iCtx.strokeStyle = "var(--text)"; iCtx.lineWidth = 6; iCtx.lineCap = 'round'; iCtx.lineJoin = 'round'; 
-      for (let i = 0; i < currentStroke; i++) iCtx.stroke(new Path2D(paths[i])); 
-      iCtx.restore(); 
-    } else { 
-      iCtx.save(); iCtx.lineCap = 'round'; iCtx.lineJoin = 'round'; iCtx.strokeStyle = "var(--text)"; iCtx.lineWidth = INTERNAL_SIZE * 0.055; 
-      userStrokes.forEach(stroke => { if (stroke.length === 0) return; iCtx.beginPath(); iCtx.moveTo(stroke[0].x, stroke[0].y); stroke.forEach(pt => iCtx.lineTo(pt.x, pt.y)); iCtx.stroke(); }); 
-      iCtx.restore(); 
+    if (count < 2) {
+      const svgScale = INTERNAL_SIZE / viewBoxSize;
+      iCtx.save(); iCtx.scale(svgScale, svgScale); iCtx.strokeStyle = "var(--text)"; iCtx.lineWidth = viewBoxSize * 0.055; iCtx.lineCap = 'round'; iCtx.lineJoin = 'round';
+      for (let i = 0; i < currentStroke; i++) iCtx.stroke(new Path2D(paths[i]));
+      iCtx.restore();
+    } else {
+      iCtx.save(); iCtx.lineCap = 'round'; iCtx.lineJoin = 'round'; iCtx.strokeStyle = "var(--text)"; iCtx.lineWidth = INTERNAL_SIZE * 0.055;
+      userStrokes.forEach(stroke => { if (stroke.length === 0) return; iCtx.beginPath(); iCtx.moveTo(stroke[0].x, stroke[0].y); stroke.forEach(pt => iCtx.lineTo(pt.x, pt.y)); iCtx.stroke(); });
+      iCtx.restore();
     }
-  }, [paths, currentStroke, count, userStrokes]);
+  }, [paths, currentStroke, count, userStrokes, viewBoxSize]);
 
   useEffect(() => { drawInk(); }, [drawInk]);
   useEffect(() => { 
@@ -75,8 +76,8 @@ const WriteMode = ({ paths, strokeData, crossMatrix, onNext, commonSidebar, onRe
   };
   
   const lastPos = useRef({ x: 0, y: 0 });
-  const stateRef = useRef({ currentStroke, isDrawing, paths, strokeData, count, userStrokes, crossMatrix });
-  useEffect(() => { stateRef.current = { currentStroke, isDrawing, paths, strokeData, count, userStrokes, crossMatrix }; }, [currentStroke, isDrawing, paths, strokeData, count, userStrokes, crossMatrix]);
+  const stateRef = useRef({ currentStroke, isDrawing, paths, strokeData, viewBoxSize, count, userStrokes, crossMatrix });
+  useEffect(() => { stateRef.current = { currentStroke, isDrawing, paths, strokeData, viewBoxSize, count, userStrokes, crossMatrix }; }, [currentStroke, isDrawing, paths, strokeData, viewBoxSize, count, userStrokes, crossMatrix]);
 
   const handleStart = useCallback((e) => {
     const { currentStroke, paths, strokeData } = stateRef.current;
@@ -155,19 +156,20 @@ const WriteMode = ({ paths, strokeData, crossMatrix, onNext, commonSidebar, onRe
       <AnimatePresence>{floatingTexts.map(ft => (<motion.div key={ft.id} initial={{ opacity: 1, y: ft.y, x: ft.x, scale: 0.5 * ft.scale }} animate={{ opacity: 0, y: ft.y - 40 * ft.scale, scale: 1.2 * ft.scale }} exit={{ opacity: 0 }} transition={{ duration: 0.8, ease: "easeOut" }} className="absolute z-50 font-black pointer-events-none drop-shadow-md whitespace-nowrap -translate-x-1/2 -translate-y-1/2" style={{ color: ft.color, fontSize: '24px' }}>{ft.text}</motion.div>))}</AnimatePresence>
       <div className="absolute top-0 left-1/2 w-0 h-full border-l-4 border-dashed border-[var(--text)] opacity-10 -translate-x-1/2 pointer-events-none" /><div className="absolute top-1/2 left-0 w-full h-0 border-t-4 border-dashed border-[var(--text)] opacity-10 -translate-y-1/2 pointer-events-none" />
       
-      <svg viewBox="0 0 109 109" className="absolute inset-0 z-0 pointer-events-none w-full h-full opacity-50">
+      <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="absolute inset-0 z-0 pointer-events-none w-full h-full opacity-50">
         {paths.map((d, i) => {
+          const sw = viewBoxSize * 0.055;
           if (i === currentStroke) {
             return (
               <g key={i}>
-                <path d={d} fill="none" stroke={isBlindMode ? "rgba(255, 107, 107, 0.3)" : "var(--primary)"} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke={isBlindMode ? "rgba(255, 107, 107, 0.3)" : "var(--primary)"} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
                 {strokeData[i] && (
-                  <circle cx={strokeData[i].s.x * 109} cy={strokeData[i].s.y * 109} r="4" fill={isBlindMode ? "rgba(255, 107, 107, 0.4)" : "var(--primary)"} />
+                  <circle cx={strokeData[i].s.x * viewBoxSize} cy={strokeData[i].s.y * viewBoxSize} r={viewBoxSize * 0.035} fill={isBlindMode ? "rgba(255, 107, 107, 0.4)" : "var(--primary)"} />
                 )}
               </g>
             );
           } else if (i > currentStroke && !isBlindMode) {
-            return <path key={i} d={d} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />;
+            return <path key={i} d={d} fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />;
           }
           return null;
         })}

@@ -8,7 +8,11 @@ import { KANA_VG } from '../constants/gameConfig';
 
 const LEGACY_STORAGE_KEY = 'kana_vg_cache';
 
-/** @type {Map<string, string[]>} メモリキャッシュ（セッション中は即返却） */
+/**
+ * キャッシュ値の形式: { paths: string[], viewBoxSize: number }
+ * v1 (旧形式) は string[] だったため、配列なら旧形式と判定して無視する
+ * @type {Map<string, { paths: string[], viewBoxSize: number }>}
+ */
 const memoryCache = new Map();
 
 // 起動時に localStorage → IndexedDB へ移行（非同期・失敗無視）
@@ -52,21 +56,67 @@ async function fetchWithRetry(url, maxRetries, timeout) {
 }
 
 /**
- * SVGテキストからpath要素のd属性文字列を抽出する
+ * SVGテキストからストローク中央線(median)パスを抽出し、画ごとにグループ化する
+ *
+ * AnimCJK SVG の構造:
+ *   - outline paths: id="z{code}d{strokeNum}{subPart?}" → 塗り形状（clipPath用）
+ *   - median paths:  clip-path="url(#z{code}c{strokeNum}{subPart?})" → 中央線ストローク
+ * 同じ strokeNum の median が複数ある場合（例: d3a, d3b）は同一画のサブパーツ。
+ * 各画の代表 median（viewBox 内に始点がある方）を1本選ぶ。
+ *
  * @param {string} svgText - SVG文字列
- * @returns {string[]} path d属性の配列
+ * @returns {{ paths: string[], viewBoxSize: number }} 画ごとの median path と viewBox サイズ
  */
 function extractPathStrings(svgText) {
   const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
-  return Array.from(doc.querySelectorAll('path')).map(p => p.getAttribute('d'));
+
+  // viewBox サイズを取得（AnimCJK は 1024×1024）
+  const svgEl = doc.querySelector('svg');
+  const vbParts = svgEl?.getAttribute('viewBox')?.split(/\s+/).map(Number);
+  const viewBoxSize = (vbParts && vbParts.length >= 3) ? vbParts[2] : 1024;
+
+  // median paths = clip-path 属性を持つ path 要素
+  const medianEls = Array.from(doc.querySelectorAll('path[clip-path]'));
+
+  // clip-path URL からストローク番号を抽出してグループ化
+  // 例: url(#z12354c3a) → strokeNum=3
+  const groups = new Map(); // strokeNum → [{ d, subId }]
+  for (const el of medianEls) {
+    const cp = el.getAttribute('clip-path') || '';
+    const m = cp.match(/url\(#z\d+c(\d+)/);
+    if (!m) continue;
+    const strokeNum = parseInt(m[1], 10);
+    const d = el.getAttribute('d');
+    if (!d) continue;
+    if (!groups.has(strokeNum)) groups.set(strokeNum, []);
+    groups.get(strokeNum).push(d);
+  }
+
+  // ストローク番号順にソートし、各画から代表パスを1本選ぶ
+  // 代表パス = 始点が viewBox 内（x >= 0）にあるもの
+  const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+  const paths = sortedKeys.map(key => {
+    const candidates = groups.get(key);
+    if (candidates.length === 1) return candidates[0];
+    // 始点の x 座標が 0 以上のものを優先（負座標はミラー用サブパス）
+    const primary = candidates.find(d => {
+      const firstNum = parseFloat(d.replace(/^M\s*/, '').split(/[\s,]/)[0]);
+      return !isNaN(firstNum) && firstNum >= 0;
+    });
+    return primary || candidates[0];
+  });
+
+  return { paths, viewBoxSize };
 }
 
 /**
  * path文字列配列をstrokeData（正規化座標のポイント群）に変換する
  * @param {string[]} pathStrings
+ * @param {number} viewBoxSize - SVG の viewBox サイズ（正規化に使用）
  * @returns {Array<{s: {x: number, y: number}, e: {x: number, y: number}, points: Array<{x: number, y: number}>}>}
  */
-function buildStrokeData(pathStrings) {
+function buildStrokeData(pathStrings, viewBoxSize) {
+  const size = viewBoxSize || 1024;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   svg.appendChild(pathEl);
@@ -78,14 +128,14 @@ function buildStrokeData(pathStrings) {
       const points = [];
       for (let i = 0; i <= len; i += KANA_VG.SAMPLE_INTERVAL) {
         const pt = pathEl.getPointAtLength(i);
-        points.push({ x: pt.x / KANA_VG.VIEWBOX_SIZE, y: pt.y / KANA_VG.VIEWBOX_SIZE });
+        points.push({ x: pt.x / size, y: pt.y / size });
       }
       const endPt = pathEl.getPointAtLength(len);
-      points.push({ x: endPt.x / KANA_VG.VIEWBOX_SIZE, y: endPt.y / KANA_VG.VIEWBOX_SIZE });
+      points.push({ x: endPt.x / size, y: endPt.y / size });
       const startPt = pathEl.getPointAtLength(0);
       return {
-        s: { x: startPt.x / KANA_VG.VIEWBOX_SIZE, y: startPt.y / KANA_VG.VIEWBOX_SIZE },
-        e: { x: endPt.x / KANA_VG.VIEWBOX_SIZE, y: endPt.y / KANA_VG.VIEWBOX_SIZE },
+        s: { x: startPt.x / size, y: startPt.y / size },
+        e: { x: endPt.x / size, y: endPt.y / size },
         points,
       };
     });
@@ -110,17 +160,21 @@ export async function fetchKanaVg(char) {
   // AnimCJK の svgsJaKana ファイル名はUnicodeの10進数文字列
   const fileId = char.charCodeAt(0).toString(10);
 
-  // 1. メモリキャッシュ
+  // 1. メモリキャッシュ（新形式 { paths, viewBoxSize } のみ有効）
   if (memoryCache.has(fileId)) {
     const cached = memoryCache.get(fileId);
-    return { paths: cached, strokeData: buildStrokeData(cached) };
+    if (cached && cached.paths && cached.viewBoxSize) {
+      return { paths: cached.paths, viewBoxSize: cached.viewBoxSize, strokeData: buildStrokeData(cached.paths, cached.viewBoxSize) };
+    }
+    // 旧形式 → 無効化
+    memoryCache.delete(fileId);
   }
 
-  // 2. IndexedDB キャッシュ
+  // 2. IndexedDB キャッシュ（新形式のみ有効、旧形式の string[] は無視）
   const idbCached = await idbGet(fileId);
-  if (idbCached) {
+  if (idbCached && idbCached.paths && idbCached.viewBoxSize) {
     memoryCache.set(fileId, idbCached);
-    return { paths: idbCached, strokeData: buildStrokeData(idbCached) };
+    return { paths: idbCached.paths, viewBoxSize: idbCached.viewBoxSize, strokeData: buildStrokeData(idbCached.paths, idbCached.viewBoxSize) };
   }
 
   // 3. ネットワーク取得（リトライ付き）
@@ -130,13 +184,14 @@ export async function fetchKanaVg(char) {
     KANA_VG.FETCH_TIMEOUT
   );
   const text = await res.text();
-  const pathStrings = extractPathStrings(text);
+  const { paths, viewBoxSize } = extractPathStrings(text);
 
-  // キャッシュ保存（非同期・失敗無視）
-  memoryCache.set(fileId, pathStrings);
-  idbSet(fileId, pathStrings);
+  // キャッシュ保存（新形式: { paths, viewBoxSize }）
+  const cacheValue = { paths, viewBoxSize };
+  memoryCache.set(fileId, cacheValue);
+  idbSet(fileId, cacheValue);
 
-  return { paths: pathStrings, strokeData: buildStrokeData(pathStrings) };
+  return { paths, viewBoxSize, strokeData: buildStrokeData(paths, viewBoxSize) };
 }
 
 /**
@@ -151,7 +206,12 @@ export async function prefetchKanaVg(kanaList) {
   const cachedKeys = new Set(await idbGetAllKeys());
   const uncached = kanaList.filter(k => {
     const fileId = k.char.charCodeAt(0).toString(10);
-    return !memoryCache.has(fileId) && !cachedKeys.has(fileId);
+    // メモリ内の新形式キャッシュがあればスキップ
+    const mem = memoryCache.get(fileId);
+    if (mem && mem.paths && mem.viewBoxSize) return false;
+    // IndexedDB にキーがあっても旧形式の可能性があるため再取得対象とする
+    // （ネットワーク取得時に新形式で上書きされる）
+    return !mem;
   });
 
   let cached = kanaList.length - uncached.length;
@@ -166,9 +226,10 @@ export async function prefetchKanaVg(kanaList) {
       );
       if (res.ok) {
         const text = await res.text();
-        const pathStrings = extractPathStrings(text);
-        memoryCache.set(fileId, pathStrings);
-        await idbSet(fileId, pathStrings);
+        const { paths, viewBoxSize } = extractPathStrings(text);
+        const cacheValue = { paths, viewBoxSize };
+        memoryCache.set(fileId, cacheValue);
+        await idbSet(fileId, cacheValue);
         cached++;
       }
     } catch {
