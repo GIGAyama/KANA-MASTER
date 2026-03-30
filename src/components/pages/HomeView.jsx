@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Play, Book } from 'lucide-react';
 import { audioCtrl } from '../../systems/audio';
+import LevelBadge from '../ui/LevelBadge';
 
 export default function HomeView({ setView, stats, isMobile }) {
   const handleNavigation = (viewName) => {
@@ -25,6 +26,11 @@ export default function HomeView({ setView, stats, isMobile }) {
           なぞって おぼえて ことばを みつけよう！
         </p>
       </motion.div>
+
+      {/* レベル表示 */}
+      <div className="w-full max-w-2xl mb-6 px-2">
+        <LevelBadge totalExp={stats.totalExp || 0} />
+      </div>
 
       {/* メニューグリッド */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
