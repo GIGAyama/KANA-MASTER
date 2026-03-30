@@ -8,7 +8,7 @@ import { audioCtrl } from '../../systems/audio';
 
 const ANIM_DURATION = 800; // ms per stroke
 
-const WatchMode = ({ paths, strokeData, viewBoxSize = 1024, isLoading, onNext, commonSidebar }) => {
+const WatchMode = ({ paths, strokeData, viewBoxSize = 109, isLoading, onNext, commonSidebar }) => {
   const [currentStroke, setCurrentStroke] = useState(0);
   const [progress, setProgress] = useState(0); // 0-1 animation progress
   const [isPlaying, setIsPlaying] = useState(false);
